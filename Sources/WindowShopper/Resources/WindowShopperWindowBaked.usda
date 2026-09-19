@@ -1,0 +1,1556 @@
+#usda 1.0
+def Material "WindowShopperWindowBaked" {
+    float2 inputs:RoomSize = (3.2, 2.8)
+    float inputs:RoomDepth = 2.5
+    float2 inputs:SurfaceTileSize = (3, 3)
+    float inputs:SurfaceRepeat = 0
+    asset inputs:ShellTexture
+    asset inputs:SurfaceTexture
+    float4 inputs:BackRect = (0, 0, 1, 1)
+    float4 inputs:LeftRect = (0, 0, 1, 1)
+    float4 inputs:RightRect = (0, 0, 1, 1)
+    float4 inputs:FloorRect = (0, 0, 1, 1)
+    float4 inputs:CeilingRect = (0, 0, 1, 1)
+    asset inputs:RoomEmissionTexture
+    float inputs:RoomEmissionGain = 0
+    float2 inputs:ApertureSize = (3.2, 2.8)
+    float2 inputs:ApertureOffset = (0, 0)
+    float inputs:ShutterCoverage = 0
+    float inputs:Mullion = 0
+    float inputs:Crossbar = 0
+    asset inputs:ReflectionTexture
+    float inputs:ReflectionStrength = 0.25
+    color3f inputs:GlassTint = (1, 1, 1)
+    float inputs:ReflectionRotation = 0
+    float inputs:ReflectionExposure = 1
+    float inputs:ReflectionBlur = 0
+    float inputs:ReflectionOnly = 0
+    asset inputs:Facade
+    asset inputs:OcclusionMap
+    color3f inputs:Tint = (1, 1, 1)
+    float2 inputs:SurfaceUVScale = (1, 1)
+    float2 inputs:SurfaceUVOffset = (0, 0)
+    float inputs:PackedAtlasUV = 0
+    float inputs:StructuralAmbientShape = 0
+    float inputs:DistrictAmbientGain = 1
+    float inputs:DistrictHighlightGain = 1
+    float inputs:AltitudeHazeScale = 1
+    float inputs:FogDensity = -0.0185
+    float inputs:FogBrightness = 0.8
+    float inputs:FogEnabled = 1
+    float inputs:EmissionStrength = 0
+    float inputs:EmissionThreshold = 0.12
+    color3f inputs:EmissionTint = (1, 1, 1)
+    float3 inputs:HeadlightOrigin = (0, 1.04, -1.37)
+    float3 inputs:HeadlightForward = (0, -0.10443, -0.99453)
+    float inputs:HeadlightEnabled = 0
+    # BEGIN SHARED CITY AIR PARAMETERS
+    float inputs:CityAirEnabled = 0
+    float3 inputs:CityHeightAxis = (0, 1, 0)
+    float inputs:CityHeightOffset = 0
+    # END SHARED CITY AIR PARAMETERS
+    token outputs:mtlx:surface.connect = </WindowShopperWindowBaked/Surface.outputs:out>
+    def Shader "UV" {
+        uniform token info:id = "ND_texcoord_vector2"
+        int inputs:index = 0
+        float2 outputs:out
+    }
+    # A face carries one tile identifier in UV.x's 256-wide band. Physical
+    # repeats remain continuous vertex UVs; only this fragment stage wraps them.
+    def Shader "PackedU" {
+        uniform token info:id = "ND_extract_vector2"
+        float2 inputs:in.connect = </WindowShopperWindowBaked/UV.outputs:out>
+        int inputs:index = 0
+        float outputs:out
+    }
+    def Shader "PackedV" {
+        uniform token info:id = "ND_extract_vector2"
+        float2 inputs:in.connect = </WindowShopperWindowBaked/UV.outputs:out>
+        int inputs:index = 1
+        float outputs:out
+    }
+    def Shader "TileBand" {
+        uniform token info:id = "ND_divide_float"
+        float inputs:in1.connect = </WindowShopperWindowBaked/PackedU.outputs:out>
+        float inputs:in2 = 256
+        float outputs:out
+    }
+    def Shader "TileID" {
+        uniform token info:id = "ND_floor_float"
+        float inputs:in.connect = </WindowShopperWindowBaked/TileBand.outputs:out>
+        float outputs:out
+    }
+    def Shader "EncodedBase" {
+        uniform token info:id = "ND_multiply_float"
+        float inputs:in1.connect = </WindowShopperWindowBaked/TileID.outputs:out>
+        float inputs:in2 = 256
+        float outputs:out
+    }
+    def Shader "LocalU" {
+        uniform token info:id = "ND_subtract_float"
+        float inputs:in1.connect = </WindowShopperWindowBaked/PackedU.outputs:out>
+        float inputs:in2.connect = </WindowShopperWindowBaked/EncodedBase.outputs:out>
+        float outputs:out
+    }
+    def Shader "LocalUV" {
+        uniform token info:id = "ND_combine2_vector2"
+        float inputs:in1.connect = </WindowShopperWindowBaked/LocalU.outputs:out>
+        float inputs:in2.connect = </WindowShopperWindowBaked/PackedV.outputs:out>
+        float2 outputs:out
+    }
+    def Shader "TileRowBand" {
+        uniform token info:id = "ND_divide_float"
+        float inputs:in1.connect = </WindowShopperWindowBaked/TileID.outputs:out>
+        float inputs:in2 = 4
+        float outputs:out
+    }
+    def Shader "TileRow" {
+        uniform token info:id = "ND_floor_float"
+        float inputs:in.connect = </WindowShopperWindowBaked/TileRowBand.outputs:out>
+        float outputs:out
+    }
+    def Shader "TileRowStart" {
+        uniform token info:id = "ND_multiply_float"
+        float inputs:in1.connect = </WindowShopperWindowBaked/TileRow.outputs:out>
+        float inputs:in2 = 4
+        float outputs:out
+    }
+    def Shader "TileColumn" {
+        uniform token info:id = "ND_subtract_float"
+        float inputs:in1.connect = </WindowShopperWindowBaked/TileID.outputs:out>
+        float inputs:in2.connect = </WindowShopperWindowBaked/TileRowStart.outputs:out>
+        float outputs:out
+    }
+    def Shader "TileCell" {
+        uniform token info:id = "ND_combine2_vector2"
+        float inputs:in1.connect = </WindowShopperWindowBaked/TileColumn.outputs:out>
+        float inputs:in2.connect = </WindowShopperWindowBaked/TileRow.outputs:out>
+        float2 outputs:out
+    }
+    # Square 2048px atlas: 4x4 cells, each 512px with a 3px gutter.
+    # IDs 0...5 retain their cells; IDs 6/7 add upper mineral wall/floor skins.
+    # Keep these normalized constants aligned with WindowShopperWindowBaked.swift.
+    def Shader "TileOrigin" {
+        uniform token info:id = "ND_multiply_vector2"
+        float2 inputs:in1.connect = </WindowShopperWindowBaked/TileCell.outputs:out>
+        float2 inputs:in2 = (0.25, 0.25)
+        float2 outputs:out
+    }
+    def Shader "ScaledUV" {
+        uniform token info:id = "ND_multiply_vector2"
+        float2 inputs:in1.connect = </WindowShopperWindowBaked/LocalUV.outputs:out>
+        float2 inputs:in2.connect = </WindowShopperWindowBaked.inputs:SurfaceUVScale>
+        float2 outputs:out
+    }
+    def Shader "TransformedLocalUV" {
+        uniform token info:id = "ND_add_vector2"
+        float2 inputs:in1.connect = </WindowShopperWindowBaked/ScaledUV.outputs:out>
+        float2 inputs:in2.connect = </WindowShopperWindowBaked.inputs:SurfaceUVOffset>
+        float2 outputs:out
+    }
+    def Shader "LocalCell" {
+        uniform token info:id = "ND_floor_vector2"
+        float2 inputs:in.connect = </WindowShopperWindowBaked/TransformedLocalUV.outputs:out>
+        float2 outputs:out
+    }
+    def Shader "WrappedLocalUV" {
+        uniform token info:id = "ND_subtract_vector2"
+        float2 inputs:in1.connect = </WindowShopperWindowBaked/TransformedLocalUV.outputs:out>
+        float2 inputs:in2.connect = </WindowShopperWindowBaked/LocalCell.outputs:out>
+        float2 outputs:out
+    }
+    def Shader "InteriorUV" {
+        uniform token info:id = "ND_multiply_vector2"
+        float2 inputs:in1.connect = </WindowShopperWindowBaked/WrappedLocalUV.outputs:out>
+        float2 inputs:in2 = (0.2470703125, 0.2470703125)
+        float2 outputs:out
+    }
+    def Shader "InsetUV" {
+        uniform token info:id = "ND_add_vector2"
+        float2 inputs:in1.connect = </WindowShopperWindowBaked/InteriorUV.outputs:out>
+        float2 inputs:in2 = (0.00146484375, 0.00146484375)
+        float2 outputs:out
+    }
+    def Shader "SurfaceUV" {
+        uniform token info:id = "ND_add_vector2"
+        float2 inputs:in1.connect = </WindowShopperWindowBaked/InsetUV.outputs:out>
+        float2 inputs:in2.connect = </WindowShopperWindowBaked/TileOrigin.outputs:out>
+        float2 outputs:out
+    }
+    # Authored district art uses ordinary atlas UVs, while structural skins
+    # retain the compact tile encoding. This is one shared opaque shader path.
+    def Shader "AuthoredScaledUV" {
+        uniform token info:id = "ND_multiply_vector2"
+        float2 inputs:in1.connect = </WindowShopperWindowBaked/UV.outputs:out>
+        float2 inputs:in2.connect = </WindowShopperWindowBaked.inputs:SurfaceUVScale>
+        float2 outputs:out
+    }
+    def Shader "AuthoredUV" {
+        uniform token info:id = "ND_add_vector2"
+        float2 inputs:in1.connect = </WindowShopperWindowBaked/AuthoredScaledUV.outputs:out>
+        float2 inputs:in2.connect = </WindowShopperWindowBaked.inputs:SurfaceUVOffset>
+        float2 outputs:out
+    }
+    def Shader "SelectedUV" {
+        uniform token info:id = "ND_mix_vector2"
+        float2 inputs:bg.connect = </WindowShopperWindowBaked/AuthoredUV.outputs:out>
+        float2 inputs:fg.connect = </WindowShopperWindowBaked/SurfaceUV.outputs:out>
+        float inputs:mix.connect = </WindowShopperWindowBaked.inputs:PackedAtlasUV>
+        float2 outputs:out
+    }
+    def Shader "SelectedContinuousUV" {
+        uniform token info:id = "ND_mix_vector2"
+        float2 inputs:bg.connect = </WindowShopperWindowBaked/AuthoredUV.outputs:out>
+        float2 inputs:fg.connect = </WindowShopperWindowBaked/ContinuousInteriorUV.outputs:out>
+        float inputs:mix.connect = </WindowShopperWindowBaked.inputs:PackedAtlasUV>
+        float2 outputs:out
+    }
+    # Derivatives come from continuous coordinates, before wrapping. Implicit
+    # derivatives of fract would pick coarse mips at every repeat seam.
+    # Public RealityKitTexture2DGradient / MTL_dfdx nodes are defined by the SDK.
+    def Shader "ContinuousInteriorUV" {
+        uniform token info:id = "ND_multiply_vector2"
+        float2 inputs:in1.connect = </WindowShopperWindowBaked/TransformedLocalUV.outputs:out>
+        float2 inputs:in2 = (0.2470703125, 0.2470703125)
+        float2 outputs:out
+    }
+    def Shader "UVGradientX" {
+        uniform token info:id = "ND_MTL_dfdx_vector2"
+        float2 inputs:p.connect = </WindowShopperWindowBaked/SelectedContinuousUV.outputs:out>
+        float2 outputs:out
+    }
+    def Shader "UVGradientY" {
+        uniform token info:id = "ND_MTL_dfdy_vector2"
+        float2 inputs:p.connect = </WindowShopperWindowBaked/SelectedContinuousUV.outputs:out>
+        float2 outputs:out
+    }
+    def Shader "Image" {
+        uniform token info:id = "ND_RealityKitTexture2DGradient_color3"
+        bool inputs:no_flip_v = true
+        asset inputs:file.connect = </WindowShopperWindowBaked.inputs:Facade>
+        float2 inputs:texcoord.connect = </WindowShopperWindowBaked/SelectedUV.outputs:out>
+        float2 inputs:gradient_dPdx.connect = </WindowShopperWindowBaked/UVGradientX.outputs:out>
+        float2 inputs:gradient_dPdy.connect = </WindowShopperWindowBaked/UVGradientY.outputs:out>
+        color3f outputs:out
+    }
+    def Shader "Tint" {
+        uniform token info:id = "ND_multiply_color3"
+        color3f inputs:in1.connect = </WindowShopperWindowBaked/WindowFinalColor.outputs:out>
+        color3f inputs:in2.connect = </WindowShopperWindowBaked.inputs:Tint>
+        color3f outputs:out
+    }
+    def Shader "ThresholdColor" {
+        uniform token info:id = "ND_convert_float_color3"
+        float inputs:in.connect = </WindowShopperWindowBaked.inputs:EmissionThreshold>
+        color3f outputs:out
+    }
+    def Shader "BrightTexels" {
+        uniform token info:id = "ND_subtract_color3"
+        color3f inputs:in1.connect = </WindowShopperWindowBaked/WindowFinalColor.outputs:out>
+        color3f inputs:in2.connect = </WindowShopperWindowBaked/ThresholdColor.outputs:out>
+        color3f outputs:out
+    }
+    def Shader "EmissionMask" {
+        uniform token info:id = "ND_max_color3"
+        color3f inputs:in1.connect = </WindowShopperWindowBaked/BrightTexels.outputs:out>
+        color3f inputs:in2 = (0, 0, 0)
+        color3f outputs:out
+    }
+    def Shader "TintedEmission" {
+        uniform token info:id = "ND_multiply_color3"
+        color3f inputs:in1.connect = </WindowShopperWindowBaked/EmissionMask.outputs:out>
+        color3f inputs:in2.connect = </WindowShopperWindowBaked.inputs:EmissionTint>
+        color3f outputs:out
+    }
+    def Shader "Emission" {
+        uniform token info:id = "ND_multiply_color3FA"
+        color3f inputs:in1.connect = </WindowShopperWindowBaked/TintedEmission.outputs:out>
+        float inputs:in2.connect = </WindowShopperWindowBaked.inputs:EmissionStrength>
+        color3f outputs:out
+    }
+    def Shader "LitSurface" {
+        uniform token info:id = "ND_add_color3"
+        color3f inputs:in1.connect = </WindowShopperWindowBaked/OccludedTint.outputs:out>
+        color3f inputs:in2.connect = </WindowShopperWindowBaked/Emission.outputs:out>
+        color3f outputs:out
+    }
+    # Generated/baked source pictures were authored at full image brightness.
+    # Dim their ambient surfaces in linear space; only genuinely bright baked
+    # practical pixels retain more energy. This never adds light or boosts a
+    # source above its authored value. Headlight reception is added afterwards.
+    def Shader "SourceRGB" {
+        uniform token info:id = "ND_convert_color3_vector3"
+        color3f inputs:in.connect = </WindowShopperWindowBaked/WindowFinalColor.outputs:out>
+        float3 outputs:out
+    }
+    def Shader "SourceLuminance" {
+        uniform token info:id = "ND_dotproduct_vector3"
+        float3 inputs:in1.connect = </WindowShopperWindowBaked/SourceRGB.outputs:out>
+        float3 inputs:in2 = (0.2126, 0.7152, 0.0722)
+        float outputs:out
+    }
+    def Shader "PracticalMask" {
+        uniform token info:id = "ND_smoothstep_float"
+        float inputs:in.connect = </WindowShopperWindowBaked/SourceLuminance.outputs:out>
+        float inputs:low = 0.60
+        float inputs:high = 0.92
+        float outputs:out
+    }
+    def Shader "DistrictGain" {
+        uniform token info:id = "ND_mix_float"
+        float inputs:bg.connect = </WindowShopperWindowBaked.inputs:DistrictAmbientGain>
+        float inputs:fg.connect = </WindowShopperWindowBaked.inputs:DistrictHighlightGain>
+        float inputs:mix.connect = </WindowShopperWindowBaked/PracticalMask.outputs:out>
+        float outputs:out
+    }
+    # Modest static ambient shape for unbaked structural tiles only. Object
+    # normal is stable as the city moves; authored interiors retain their bake.
+    def Shader "StructureNormal" {
+        uniform token info:id = "ND_normal_vector3"
+        string inputs:space = "object"
+        float3 outputs:out
+    }
+    def Shader "StructureUp" {
+        uniform token info:id = "ND_dotproduct_vector3"
+        float3 inputs:in1.connect = </WindowShopperWindowBaked/StructureNormal.outputs:out>
+        float3 inputs:in2 = (0, 1, 0)
+        float outputs:out
+    }
+    def Shader "StructureTilt" {
+        uniform token info:id = "ND_multiply_float"
+        float inputs:in1.connect = </WindowShopperWindowBaked/StructureUp.outputs:out>
+        float inputs:in2 = 0.20
+        float outputs:out
+    }
+    def Shader "StructureValue" {
+        uniform token info:id = "ND_add_float"
+        float inputs:in1.connect = </WindowShopperWindowBaked/StructureTilt.outputs:out>
+        float inputs:in2 = 0.80
+        float outputs:out
+    }
+    def Shader "StructureEnabled" {
+        uniform token info:id = "ND_multiply_float"
+        float inputs:in1.connect = </WindowShopperWindowBaked.inputs:StructuralAmbientShape>
+        float inputs:in2.connect = </WindowShopperWindowBaked.inputs:PackedAtlasUV>
+        float outputs:out
+    }
+    def Shader "StructureShape" {
+        uniform token info:id = "ND_mix_float"
+        float inputs:bg = 1
+        float inputs:fg.connect = </WindowShopperWindowBaked/StructureValue.outputs:out>
+        float inputs:mix.connect = </WindowShopperWindowBaked/StructureEnabled.outputs:out>
+        float outputs:out
+    }
+    def Shader "ShapedDistrictGain" {
+        uniform token info:id = "ND_multiply_float"
+        float inputs:in1.connect = </WindowShopperWindowBaked/DistrictGain.outputs:out>
+        float inputs:in2.connect = </WindowShopperWindowBaked/StructureShape.outputs:out>
+        float outputs:out
+    }
+    def Shader "DistrictNightSurface" {
+        uniform token info:id = "ND_multiply_color3FA"
+        color3f inputs:in1.connect = </WindowShopperWindowBaked/LitSurface.outputs:out>
+        float inputs:in2.connect = </WindowShopperWindowBaked/ShapedDistrictGain.outputs:out>
+        color3f outputs:out
+    }
+    def Shader "OcclusionTexture" {
+        uniform token info:id = "ND_RealityKitTexture2DGradient_vector4"
+        bool inputs:no_flip_v = true
+        asset inputs:file.connect = </WindowShopperWindowBaked.inputs:OcclusionMap>
+        float4 inputs:default = (1, 0, 0, 1)
+        float2 inputs:texcoord.connect = </WindowShopperWindowBaked/SelectedUV.outputs:out>
+        float2 inputs:gradient_dPdx.connect = </WindowShopperWindowBaked/UVGradientX.outputs:out>
+        float2 inputs:gradient_dPdy.connect = </WindowShopperWindowBaked/UVGradientY.outputs:out>
+        float4 outputs:out
+    }
+    def Shader "BakedAO" {
+        uniform token info:id = "ND_extract_vector4"
+        float4 inputs:in.connect = </WindowShopperWindowBaked/OcclusionTexture.outputs:out>
+        int inputs:index = 3
+        float outputs:out
+    }
+    def Shader "OccludedTint" {
+        uniform token info:id = "ND_multiply_color3FA"
+        color3f inputs:in1.connect = </WindowShopperWindowBaked/Tint.outputs:out>
+        float inputs:in2.connect = </WindowShopperWindowBaked/BakedAO.outputs:out>
+        color3f outputs:out
+    }
+    def Shader "AltitudeDensity" {
+        uniform token info:id = "ND_multiply_float"
+        float inputs:in1.connect = </WindowShopperWindowBaked.inputs:FogDensity>
+        float inputs:in2.connect = </WindowShopperWindowBaked.inputs:AltitudeHazeScale>
+        float outputs:out
+    }
+    def Shader "Position" {
+        uniform token info:id = "ND_position_vector3"
+        string inputs:space = "world"
+        float3 outputs:out
+    }
+    def Shader "Camera" {
+        uniform token info:id = "ND_realitykit_cameraposition_vector3"
+        string inputs:space = "world"
+        float3 outputs:out
+    }
+    def Shader "Offset" {
+        uniform token info:id = "ND_subtract_vector3"
+        float3 inputs:in1.connect = </WindowShopperWindowBaked/Position.outputs:out>
+        float3 inputs:in2.connect = </WindowShopperWindowBaked/Camera.outputs:out>
+        float3 outputs:out
+    }
+    def Shader "Distance" {
+        uniform token info:id = "ND_magnitude_vector3"
+        float3 inputs:in.connect = </WindowShopperWindowBaked/Offset.outputs:out>
+        float outputs:out
+    }
+    def Shader "ClearZone" {
+        uniform token info:id = "ND_subtract_float"
+        float inputs:in1.connect = </WindowShopperWindowBaked/Distance.outputs:out>
+        float inputs:in2 = 0
+        float outputs:out
+    }
+    def Shader "PositiveDistance" {
+        uniform token info:id = "ND_max_float"
+        float inputs:in1.connect = </WindowShopperWindowBaked/ClearZone.outputs:out>
+        float inputs:in2 = 0
+        float outputs:out
+    }
+    def Shader "HeavierFog" {
+        uniform token info:id = "ND_multiply_float"
+        float inputs:in1.connect = </WindowShopperWindowBaked/AltitudeDensity.outputs:out>
+        float inputs:in2 = 2
+        float outputs:out
+    }
+    def Shader "OpticalDepth" {
+        uniform token info:id = "ND_multiply_float"
+        float inputs:in1.connect = </WindowShopperWindowBaked/PositiveDistance.outputs:out>
+        float inputs:in2.connect = </WindowShopperWindowBaked/HeavierFog.outputs:out>
+        float outputs:out
+    }
+    def Shader "EnabledDepth" {
+        uniform token info:id = "ND_multiply_float"
+        float inputs:in1.connect = </WindowShopperWindowBaked/OpticalDepth.outputs:out>
+        float inputs:in2.connect = </WindowShopperWindowBaked.inputs:FogEnabled>
+        float outputs:out
+    }
+    def Shader "Transmittance" {
+        uniform token info:id = "ND_exp_float"
+        float inputs:in.connect = </WindowShopperWindowBaked/EnabledDepth.outputs:out>
+        float outputs:out
+    }
+    def Shader "FogColor" {
+        uniform token info:id = "ND_multiply_color3FA"
+        color3f inputs:in1 = (0.0024, 0.0045, 0.007)
+        float inputs:in2.connect = </WindowShopperWindowBaked.inputs:FogBrightness>
+        color3f outputs:out
+    }
+    def Shader "Blend" {
+        uniform token info:id = "ND_mix_color3"
+        color3f inputs:bg.connect = </WindowShopperWindowBaked/FogColor.outputs:out>
+        color3f inputs:fg.connect = </WindowShopperWindowBaked/AuthoredEmissionSurface.outputs:out>
+        float inputs:mix.connect = </WindowShopperWindowBaked/Transmittance.outputs:out>
+        color3f outputs:out
+    }
+    def Shader "HeadlampOffset" {
+        uniform token info:id = "ND_subtract_vector3"
+        float3 inputs:in1.connect = </WindowShopperWindowBaked/Position.outputs:out>
+        float3 inputs:in2.connect = </WindowShopperWindowBaked.inputs:HeadlightOrigin>
+        float3 outputs:out
+    }
+    def Shader "HeadlampDistance" {
+        uniform token info:id = "ND_magnitude_vector3"
+        float3 inputs:in.connect = </WindowShopperWindowBaked/HeadlampOffset.outputs:out>
+        float outputs:out
+    }
+    def Shader "HeadlampSafeDistance" {
+        uniform token info:id = "ND_max_float"
+        float inputs:in1.connect = </WindowShopperWindowBaked/HeadlampDistance.outputs:out>
+        float inputs:in2 = 0.05
+        float outputs:out
+    }
+    def Shader "HeadlampDirection" {
+        uniform token info:id = "ND_divide_vector3FA"
+        float3 inputs:in1.connect = </WindowShopperWindowBaked/HeadlampOffset.outputs:out>
+        float inputs:in2.connect = </WindowShopperWindowBaked/HeadlampSafeDistance.outputs:out>
+        float3 outputs:out
+    }
+    def Shader "HeadlampAngle" {
+        uniform token info:id = "ND_dotproduct_vector3"
+        float3 inputs:in1.connect = </WindowShopperWindowBaked/HeadlampDirection.outputs:out>
+        float3 inputs:in2.connect = </WindowShopperWindowBaked.inputs:HeadlightForward>
+        float outputs:out
+    }
+    def Shader "HeadlampCone" {
+        uniform token info:id = "ND_smoothstep_float"
+        float inputs:in.connect = </WindowShopperWindowBaked/HeadlampAngle.outputs:out>
+        float inputs:low = 0.88
+        float inputs:high = 0.97
+        float outputs:out
+    }
+    def Shader "HeadlampFar" {
+        uniform token info:id = "ND_smoothstep_float"
+        float inputs:in.connect = </WindowShopperWindowBaked/HeadlampDistance.outputs:out>
+        float inputs:low = 6
+        float inputs:high = 14
+        float outputs:out
+    }
+    def Shader "HeadlampFade" {
+        uniform token info:id = "ND_subtract_float"
+        float inputs:in1 = 1
+        float inputs:in2.connect = </WindowShopperWindowBaked/HeadlampFar.outputs:out>
+        float outputs:out
+    }
+    def Shader "HeadlampSquared" {
+        uniform token info:id = "ND_multiply_float"
+        float inputs:in1.connect = </WindowShopperWindowBaked/HeadlampDistance.outputs:out>
+        float inputs:in2.connect = </WindowShopperWindowBaked/HeadlampDistance.outputs:out>
+        float outputs:out
+    }
+    def Shader "HeadlampFalloff" {
+        uniform token info:id = "ND_multiply_float"
+        float inputs:in1.connect = </WindowShopperWindowBaked/HeadlampSquared.outputs:out>
+        float inputs:in2 = 0.055
+        float outputs:out
+    }
+    def Shader "HeadlampDenominator" {
+        uniform token info:id = "ND_add_float"
+        float inputs:in1.connect = </WindowShopperWindowBaked/HeadlampFalloff.outputs:out>
+        float inputs:in2 = 1
+        float outputs:out
+    }
+    def Shader "HeadlampPower" {
+        uniform token info:id = "ND_divide_float"
+        float inputs:in1 = 42
+        float inputs:in2.connect = </WindowShopperWindowBaked/HeadlampDenominator.outputs:out>
+        float outputs:out
+    }
+    def Shader "HeadlampNormal" {
+        uniform token info:id = "ND_normal_vector3"
+        string inputs:space = "world"
+        float3 outputs:out
+    }
+    def Shader "HeadlampIncidence" {
+        uniform token info:id = "ND_dotproduct_vector3"
+        float3 inputs:in1.connect = </WindowShopperWindowBaked/HeadlampNormal.outputs:out>
+        float3 inputs:in2.connect = </WindowShopperWindowBaked/HeadlampDirection.outputs:out>
+        float outputs:out
+    }
+    def Shader "HeadlampFacing" {
+        uniform token info:id = "ND_multiply_float"
+        float inputs:in1.connect = </WindowShopperWindowBaked/HeadlampIncidence.outputs:out>
+        float inputs:in2 = -1
+        float outputs:out
+    }
+    def Shader "HeadlampLambert" {
+        uniform token info:id = "ND_max_float"
+        float inputs:in1.connect = </WindowShopperWindowBaked/HeadlampFacing.outputs:out>
+        float inputs:in2 = 0
+        float outputs:out
+    }
+    def Shader "HeadlampRange" {
+        uniform token info:id = "ND_multiply_float"
+        float inputs:in1.connect = </WindowShopperWindowBaked/HeadlampPower.outputs:out>
+        float inputs:in2.connect = </WindowShopperWindowBaked/HeadlampFade.outputs:out>
+        float outputs:out
+    }
+    def Shader "HeadlampBeam" {
+        uniform token info:id = "ND_multiply_float"
+        float inputs:in1.connect = </WindowShopperWindowBaked/HeadlampRange.outputs:out>
+        float inputs:in2.connect = </WindowShopperWindowBaked/HeadlampCone.outputs:out>
+        float outputs:out
+    }
+    def Shader "HeadlampDiffuse" {
+        uniform token info:id = "ND_multiply_float"
+        float inputs:in1.connect = </WindowShopperWindowBaked/HeadlampBeam.outputs:out>
+        float inputs:in2.connect = </WindowShopperWindowBaked/HeadlampLambert.outputs:out>
+        float outputs:out
+    }
+    def Shader "HeadlampEnabled" {
+        uniform token info:id = "ND_multiply_float"
+        float inputs:in1.connect = </WindowShopperWindowBaked/HeadlampDiffuse.outputs:out>
+        float inputs:in2.connect = </WindowShopperWindowBaked.inputs:HeadlightEnabled>
+        float outputs:out
+    }
+    def Shader "HeadlampTint" {
+        uniform token info:id = "ND_multiply_color3"
+        color3f inputs:in1.connect = </WindowShopperWindowBaked/OccludedTint.outputs:out>
+        color3f inputs:in2 = (0.72, 0.85, 1)
+        color3f outputs:out
+    }
+    def Shader "HeadlampLight" {
+        uniform token info:id = "ND_multiply_color3FA"
+        color3f inputs:in1.connect = </WindowShopperWindowBaked/HeadlampTint.outputs:out>
+        float inputs:in2.connect = </WindowShopperWindowBaked/HeadlampEnabled.outputs:out>
+        color3f outputs:out
+    }
+    def Shader "HeadlampSurface" {
+        uniform token info:id = "ND_add_color3"
+        color3f inputs:in1.connect = </WindowShopperWindowBaked/DistrictNightSurface.outputs:out>
+        color3f inputs:in2.connect = </WindowShopperWindowBaked/HeadlampLight.outputs:out>
+        color3f outputs:out
+    }
+    def Shader "Surface" {
+        uniform token info:id = "ND_realitykit_unlit_surfaceshader"
+        color3f inputs:color.connect = </WindowShopperWindowBaked/AirOutput.outputs:out>
+        float inputs:opacity = 1
+        bool inputs:applyPostProcessToneMap = true
+        token outputs:out
+    }
+
+    def Shader "WindowCenteredUV" {
+        uniform token info:id = "ND_subtract_vector2"
+        float2 inputs:in1.connect = </WindowShopperWindowBaked/UV.outputs:out>
+        float2 inputs:in2 = (0.5, 0.5)
+        float2 outputs:out
+    }
+    def Shader "WindowPlaneXY" {
+        uniform token info:id = "ND_multiply_vector2"
+        float2 inputs:in1.connect = </WindowShopperWindowBaked/WindowCenteredUV.outputs:out>
+        float2 inputs:in2.connect = </WindowShopperWindowBaked.inputs:RoomSize>
+        float2 outputs:out
+    }
+    def Shader "BakedBackX" {
+        uniform token info:id = "ND_extract_vector4"
+        float4 inputs:in.connect = </WindowShopperWindowBaked.inputs:BackRect>
+        int inputs:index = 0
+        float outputs:out
+    }
+    def Shader "BakedBackY" {
+        uniform token info:id = "ND_extract_vector4"
+        float4 inputs:in.connect = </WindowShopperWindowBaked.inputs:BackRect>
+        int inputs:index = 1
+        float outputs:out
+    }
+    def Shader "BakedBackLo" {
+        uniform token info:id = "ND_combine2_vector2"
+        float inputs:in1.connect = </WindowShopperWindowBaked/BakedBackX.outputs:out>
+        float inputs:in2.connect = </WindowShopperWindowBaked/BakedBackY.outputs:out>
+        float2 outputs:out
+    }
+    def Shader "BakedBackZ" {
+        uniform token info:id = "ND_extract_vector4"
+        float4 inputs:in.connect = </WindowShopperWindowBaked.inputs:BackRect>
+        int inputs:index = 2
+        float outputs:out
+    }
+    def Shader "BakedBackW" {
+        uniform token info:id = "ND_extract_vector4"
+        float4 inputs:in.connect = </WindowShopperWindowBaked.inputs:BackRect>
+        int inputs:index = 3
+        float outputs:out
+    }
+    def Shader "BakedBackHi" {
+        uniform token info:id = "ND_combine2_vector2"
+        float inputs:in1.connect = </WindowShopperWindowBaked/BakedBackZ.outputs:out>
+        float inputs:in2.connect = </WindowShopperWindowBaked/BakedBackW.outputs:out>
+        float2 outputs:out
+    }
+    def Shader "BakedBackSpan" {
+        uniform token info:id = "ND_subtract_vector2"
+        float2 inputs:in1.connect = </WindowShopperWindowBaked/BakedBackHi.outputs:out>
+        float2 inputs:in2.connect = </WindowShopperWindowBaked/BakedBackLo.outputs:out>
+        float2 outputs:out
+    }
+    def Shader "BakedBackSpanUV" {
+        uniform token info:id = "ND_multiply_vector2"
+        float2 inputs:in1.connect = </WindowShopperWindowBaked/UV.outputs:out>
+        float2 inputs:in2.connect = </WindowShopperWindowBaked/BakedBackSpan.outputs:out>
+        float2 outputs:out
+    }
+    def Shader "BakedBackMappedUV" {
+        uniform token info:id = "ND_add_vector2"
+        float2 inputs:in1.connect = </WindowShopperWindowBaked/BakedBackLo.outputs:out>
+        float2 inputs:in2.connect = </WindowShopperWindowBaked/BakedBackSpanUV.outputs:out>
+        float2 outputs:out
+    }
+    def Shader "RoomShellImage" {
+        uniform token info:id = "ND_RealityKitTexture2D_color3"
+        asset inputs:file.connect = </WindowShopperWindowBaked.inputs:ShellTexture>
+        float2 inputs:texcoord.connect = </WindowShopperWindowBaked/BakedBackMappedUV.outputs:out>
+        bool inputs:no_flip_v = true
+        color3f outputs:out
+    }
+    def Shader "RoomEmissionImage" {
+        uniform token info:id = "ND_RealityKitTexture2D_color3"
+        asset inputs:file.connect = </WindowShopperWindowBaked.inputs:RoomEmissionTexture>
+        float2 inputs:texcoord.connect = </WindowShopperWindowBaked/BakedBackMappedUV.outputs:out>
+        bool inputs:no_flip_v = true
+        color3f outputs:out
+    }
+    def Shader "RoomEmission" {
+        uniform token info:id = "ND_multiply_color3FA"
+        color3f inputs:in1.connect = </WindowShopperWindowBaked/RoomEmissionImage.outputs:out>
+        float inputs:in2.connect = </WindowShopperWindowBaked.inputs:RoomEmissionGain>
+        color3f outputs:out
+    }
+    def Shader "ApertureXY" {
+        uniform token info:id = "ND_subtract_vector2"
+        float2 inputs:in1.connect = </WindowShopperWindowBaked/WindowPlaneXY.outputs:out>
+        float2 inputs:in2.connect = </WindowShopperWindowBaked.inputs:ApertureOffset>
+        float2 outputs:out
+    }
+    def Shader "ApertureFraction" {
+        uniform token info:id = "ND_divide_vector2"
+        float2 inputs:in1.connect = </WindowShopperWindowBaked/ApertureXY.outputs:out>
+        float2 inputs:in2.connect = </WindowShopperWindowBaked.inputs:ApertureSize>
+        float2 outputs:out
+    }
+    def Shader "ApertureUV" {
+        uniform token info:id = "ND_add_vector2"
+        float2 inputs:in1.connect = </WindowShopperWindowBaked/ApertureFraction.outputs:out>
+        float2 inputs:in2 = (0.5, 0.5)
+        float2 outputs:out
+    }
+    def Shader "ApertureV" {
+        uniform token info:id = "ND_extract_vector2"
+        float2 inputs:in.connect = </WindowShopperWindowBaked/ApertureUV.outputs:out>
+        int inputs:index = 1
+        float outputs:out
+    }
+    def Shader "ShutterBottom" {
+        uniform token info:id = "ND_subtract_float"
+        float inputs:in1 = 1
+        float inputs:in2.connect = </WindowShopperWindowBaked.inputs:ShutterCoverage>
+        float outputs:out
+    }
+    def Shader "ShutterMask" {
+        uniform token info:id = "ND_ifgreater_float"
+        float inputs:value1.connect = </WindowShopperWindowBaked/ApertureV.outputs:out>
+        float inputs:value2.connect = </WindowShopperWindowBaked/ShutterBottom.outputs:out>
+        float inputs:in1 = 1
+        float inputs:in2 = 0
+        float outputs:out
+    }
+    def Shader "ApertureX" {
+        uniform token info:id = "ND_extract_vector2"
+        float2 inputs:in.connect = </WindowShopperWindowBaked/ApertureXY.outputs:out>
+        int inputs:index = 0
+        float outputs:out
+    }
+    def Shader "VerticalDistance" {
+        uniform token info:id = "ND_absval_float"
+        float inputs:in.connect = </WindowShopperWindowBaked/ApertureX.outputs:out>
+        float outputs:out
+    }
+    def Shader "VerticalStrip" {
+        uniform token info:id = "ND_ifgreater_float"
+        float inputs:value1 = 0.045
+        float inputs:value2.connect = </WindowShopperWindowBaked/VerticalDistance.outputs:out>
+        float inputs:in1 = 1
+        float inputs:in2 = 0
+        float outputs:out
+    }
+    def Shader "VerticalCover" {
+        uniform token info:id = "ND_multiply_float"
+        float inputs:in1.connect = </WindowShopperWindowBaked/VerticalStrip.outputs:out>
+        float inputs:in2.connect = </WindowShopperWindowBaked.inputs:Mullion>
+        float outputs:out
+    }
+    def Shader "ApertureY" {
+        uniform token info:id = "ND_extract_vector2"
+        float2 inputs:in.connect = </WindowShopperWindowBaked/ApertureXY.outputs:out>
+        int inputs:index = 1
+        float outputs:out
+    }
+    def Shader "HorizontalDistance" {
+        uniform token info:id = "ND_absval_float"
+        float inputs:in.connect = </WindowShopperWindowBaked/ApertureY.outputs:out>
+        float outputs:out
+    }
+    def Shader "HorizontalStrip" {
+        uniform token info:id = "ND_ifgreater_float"
+        float inputs:value1 = 0.035
+        float inputs:value2.connect = </WindowShopperWindowBaked/HorizontalDistance.outputs:out>
+        float inputs:in1 = 1
+        float inputs:in2 = 0
+        float outputs:out
+    }
+    def Shader "HorizontalCover" {
+        uniform token info:id = "ND_multiply_float"
+        float inputs:in1.connect = </WindowShopperWindowBaked/HorizontalStrip.outputs:out>
+        float inputs:in2.connect = </WindowShopperWindowBaked.inputs:Crossbar>
+        float outputs:out
+    }
+    def Shader "FrameMask" {
+        uniform token info:id = "ND_max_float"
+        float inputs:in1.connect = </WindowShopperWindowBaked/VerticalCover.outputs:out>
+        float inputs:in2.connect = </WindowShopperWindowBaked/HorizontalCover.outputs:out>
+        float outputs:out
+    }
+    def Shader "PrivacyMask" {
+        uniform token info:id = "ND_max_float"
+        float inputs:in1.connect = </WindowShopperWindowBaked/ShutterMask.outputs:out>
+        float inputs:in2.connect = </WindowShopperWindowBaked/FrameMask.outputs:out>
+        float outputs:out
+    }
+    def Shader "BladeY" {
+        uniform token info:id = "ND_extract_vector2"
+        float2 inputs:in.connect = </WindowShopperWindowBaked/ApertureXY.outputs:out>
+        int inputs:index = 1
+        float outputs:out
+    }
+    def Shader "ShutterPitch" {
+        uniform token info:id = "ND_multiply_float"
+        float inputs:in1.connect = </WindowShopperWindowBaked/BladeY.outputs:out>
+        float inputs:in2 = 90
+        float outputs:out
+    }
+    def Shader "ShutterWave" {
+        uniform token info:id = "ND_sin_float"
+        float inputs:in.connect = </WindowShopperWindowBaked/ShutterPitch.outputs:out>
+        float outputs:out
+    }
+    def Shader "BladeContrast" {
+        uniform token info:id = "ND_multiply_float"
+        float inputs:in1.connect = </WindowShopperWindowBaked/ShutterWave.outputs:out>
+        float inputs:in2 = 0.2
+        float outputs:out
+    }
+    def Shader "ShutterShade" {
+        uniform token info:id = "ND_add_float"
+        float inputs:in1 = 0.8
+        float inputs:in2.connect = </WindowShopperWindowBaked/BladeContrast.outputs:out>
+        float outputs:out
+    }
+    def Shader "PrivacyColor" {
+        uniform token info:id = "ND_multiply_color3FA"
+        color3f inputs:in1 = (0.012, 0.018, 0.02)
+        float inputs:in2.connect = </WindowShopperWindowBaked/ShutterShade.outputs:out>
+        color3f outputs:out
+    }
+    def Shader "PrivacyComposite" {
+        uniform token info:id = "ND_mix_color3"
+        color3f inputs:bg.connect = </WindowShopperWindowBaked/RoomShellImage.outputs:out>
+        color3f inputs:fg.connect = </WindowShopperWindowBaked/PrivacyColor.outputs:out>
+        float inputs:mix.connect = </WindowShopperWindowBaked/PrivacyMask.outputs:out>
+        color3f outputs:out
+    }
+    def Shader "PrivacyTransmission" {
+        uniform token info:id = "ND_subtract_float"
+        float inputs:in1 = 1
+        float inputs:in2.connect = </WindowShopperWindowBaked/PrivacyMask.outputs:out>
+        float outputs:out
+    }
+    def Shader "PrivacyEmission" {
+        uniform token info:id = "ND_multiply_color3FA"
+        color3f inputs:in1.connect = </WindowShopperWindowBaked/RoomEmission.outputs:out>
+        float inputs:in2.connect = </WindowShopperWindowBaked/PrivacyTransmission.outputs:out>
+        color3f outputs:out
+    }
+    def Shader "GlassToCamera" {
+        uniform token info:id = "ND_subtract_vector3"
+        float3 inputs:in1.connect = </WindowShopperWindowBaked/Camera.outputs:out>
+        float3 inputs:in2.connect = </WindowShopperWindowBaked/Position.outputs:out>
+        float3 outputs:out
+    }
+    def Shader "GlassView" {
+        uniform token info:id = "ND_normalize_vector3"
+        float3 inputs:in.connect = </WindowShopperWindowBaked/GlassToCamera.outputs:out>
+        float3 outputs:out
+    }
+    def Shader "GlassNormal" {
+        uniform token info:id = "ND_normal_vector3"
+        string inputs:space = "world"
+        float3 outputs:out
+    }
+    def Shader "GlassDot" {
+        uniform token info:id = "ND_dotproduct_vector3"
+        float3 inputs:in1.connect = </WindowShopperWindowBaked/GlassView.outputs:out>
+        float3 inputs:in2.connect = </WindowShopperWindowBaked/GlassNormal.outputs:out>
+        float outputs:out
+    }
+    def Shader "GlassDoubleDot" {
+        uniform token info:id = "ND_multiply_float"
+        float inputs:in1.connect = </WindowShopperWindowBaked/GlassDot.outputs:out>
+        float inputs:in2 = 2
+        float outputs:out
+    }
+    def Shader "GlassNormalProjection" {
+        uniform token info:id = "ND_multiply_vector3FA"
+        float3 inputs:in1.connect = </WindowShopperWindowBaked/GlassNormal.outputs:out>
+        float inputs:in2.connect = </WindowShopperWindowBaked/GlassDoubleDot.outputs:out>
+        float3 outputs:out
+    }
+    def Shader "GlassReflect" {
+        uniform token info:id = "ND_subtract_vector3"
+        float3 inputs:in1.connect = </WindowShopperWindowBaked/GlassNormalProjection.outputs:out>
+        float3 inputs:in2.connect = </WindowShopperWindowBaked/GlassView.outputs:out>
+        float3 outputs:out
+    }
+    def Shader "GlassRX" {
+        uniform token info:id = "ND_extract_vector3"
+        float3 inputs:in.connect = </WindowShopperWindowBaked/GlassReflect.outputs:out>
+        int inputs:index = 0
+        float outputs:out
+    }
+    def Shader "GlassRZ" {
+        uniform token info:id = "ND_extract_vector3"
+        float3 inputs:in.connect = </WindowShopperWindowBaked/GlassReflect.outputs:out>
+        int inputs:index = 2
+        float outputs:out
+    }
+    def Shader "GlassLongitude" {
+        uniform token info:id = "ND_atan2_float"
+        float inputs:iny.connect = </WindowShopperWindowBaked/GlassRX.outputs:out>
+        float inputs:inx.connect = </WindowShopperWindowBaked/GlassRZ.outputs:out>
+        float outputs:out
+    }
+    def Shader "GlassRY" {
+        uniform token info:id = "ND_extract_vector3"
+        float3 inputs:in.connect = </WindowShopperWindowBaked/GlassReflect.outputs:out>
+        int inputs:index = 1
+        float outputs:out
+    }
+    def Shader "GlassYMin" {
+        uniform token info:id = "ND_max_float"
+        float inputs:in1 = -1
+        float inputs:in2.connect = </WindowShopperWindowBaked/GlassRY.outputs:out>
+        float outputs:out
+    }
+    def Shader "GlassYMax" {
+        uniform token info:id = "ND_min_float"
+        float inputs:in1 = 1
+        float inputs:in2.connect = </WindowShopperWindowBaked/GlassYMin.outputs:out>
+        float outputs:out
+    }
+    def Shader "GlassLatitude" {
+        uniform token info:id = "ND_acos_float"
+        float inputs:in.connect = </WindowShopperWindowBaked/GlassYMax.outputs:out>
+        float outputs:out
+    }
+    def Shader "GlassUScale" {
+        uniform token info:id = "ND_multiply_float"
+        float inputs:in1.connect = </WindowShopperWindowBaked/GlassLongitude.outputs:out>
+        float inputs:in2 = 0.15915494309644432
+        float outputs:out
+    }
+    def Shader "GlassU" {
+        uniform token info:id = "ND_add_float"
+        float inputs:in1.connect = </WindowShopperWindowBaked/GlassUScale.outputs:out>
+        float inputs:in2 = 0.5
+        float outputs:out
+    }
+    def Shader "GlassVScale" {
+        uniform token info:id = "ND_multiply_float"
+        float inputs:in1.connect = </WindowShopperWindowBaked/GlassLatitude.outputs:out>
+        float inputs:in2 = 0.31830988614222805
+        float outputs:out
+    }
+    def Shader "GlassV" {
+        uniform token info:id = "ND_subtract_float"
+        float inputs:in1 = 1
+        float inputs:in2.connect = </WindowShopperWindowBaked/GlassVScale.outputs:out>
+        float outputs:out
+    }
+    def Shader "GlassEnvironmentUV" {
+        uniform token info:id = "ND_combine2_vector2"
+        float inputs:in1.connect = </WindowShopperWindowBaked/GlassU.outputs:out>
+        float inputs:in2.connect = </WindowShopperWindowBaked/GlassV.outputs:out>
+        float2 outputs:out
+    }
+    def Shader "GlassRawU" {
+        uniform token info:id = "ND_extract_vector2"
+        float2 inputs:in.connect = </WindowShopperWindowBaked/GlassEnvironmentUV.outputs:out>
+        int inputs:index = 0
+        float outputs:out
+    }
+    def Shader "GlassTurnU" {
+        uniform token info:id = "ND_add_float"
+        float inputs:in1.connect = </WindowShopperWindowBaked/GlassRawU.outputs:out>
+        float inputs:in2.connect = </WindowShopperWindowBaked.inputs:ReflectionRotation>
+        float outputs:out
+    }
+    def Shader "GlassWrappedU" {
+        uniform token info:id = "ND_floor_float"
+        float inputs:in.connect = </WindowShopperWindowBaked/GlassTurnU.outputs:out>
+        float outputs:out
+    }
+    def Shader "GlassRotateBase" {
+        uniform token info:id = "ND_extract_vector2"
+        float2 inputs:in.connect = </WindowShopperWindowBaked/GlassEnvironmentUV.outputs:out>
+        int inputs:index = 0
+        float outputs:out
+    }
+    def Shader "GlassRotatedU" {
+        uniform token info:id = "ND_add_float"
+        float inputs:in1.connect = </WindowShopperWindowBaked/GlassRotateBase.outputs:out>
+        float inputs:in2.connect = </WindowShopperWindowBaked.inputs:ReflectionRotation>
+        float outputs:out
+    }
+    def Shader "GlassUFract" {
+        uniform token info:id = "ND_subtract_float"
+        float inputs:in1.connect = </WindowShopperWindowBaked/GlassRotatedU.outputs:out>
+        float inputs:in2.connect = </WindowShopperWindowBaked/GlassWrappedU.outputs:out>
+        float outputs:out
+    }
+    def Shader "GlassRawV" {
+        uniform token info:id = "ND_extract_vector2"
+        float2 inputs:in.connect = </WindowShopperWindowBaked/GlassEnvironmentUV.outputs:out>
+        int inputs:index = 1
+        float outputs:out
+    }
+    def Shader "GlassRotatedUV" {
+        uniform token info:id = "ND_combine2_vector2"
+        float inputs:in1.connect = </WindowShopperWindowBaked/GlassUFract.outputs:out>
+        float inputs:in2.connect = </WindowShopperWindowBaked/GlassRawV.outputs:out>
+        float2 outputs:out
+    }
+    def Shader "GlassEnvironment" {
+        uniform token info:id = "ND_RealityKitTexture2D_color3"
+        asset inputs:file.connect = </WindowShopperWindowBaked.inputs:ReflectionTexture>
+        float2 inputs:texcoord.connect = </WindowShopperWindowBaked/GlassRotatedUV.outputs:out>
+        bool inputs:no_flip_v = true
+        color3f outputs:out
+    }
+    def Shader "GlassBlurWidth" {
+        uniform token info:id = "ND_multiply_float"
+        float inputs:in1.connect = </WindowShopperWindowBaked.inputs:ReflectionBlur>
+        float inputs:in2 = 0.035
+        float outputs:out
+    }
+    def Shader "GlassBlurHeight" {
+        uniform token info:id = "ND_multiply_float"
+        float inputs:in1.connect = </WindowShopperWindowBaked/GlassBlurWidth.outputs:out>
+        float inputs:in2 = 0.4
+        float outputs:out
+    }
+    def Shader "GlassBlurOffset" {
+        uniform token info:id = "ND_combine2_vector2"
+        float inputs:in1.connect = </WindowShopperWindowBaked/GlassBlurWidth.outputs:out>
+        float inputs:in2.connect = </WindowShopperWindowBaked/GlassBlurHeight.outputs:out>
+        float2 outputs:out
+    }
+    def Shader "GlassBlurPlus" {
+        uniform token info:id = "ND_add_vector2"
+        float2 inputs:in1.connect = </WindowShopperWindowBaked/GlassRotatedUV.outputs:out>
+        float2 inputs:in2.connect = </WindowShopperWindowBaked/GlassBlurOffset.outputs:out>
+        float2 outputs:out
+    }
+    def Shader "GlassBlurUPlus" {
+        uniform token info:id = "ND_extract_vector2"
+        float2 inputs:in.connect = </WindowShopperWindowBaked/GlassBlurPlus.outputs:out>
+        int inputs:index = 0
+        float outputs:out
+    }
+    def Shader "GlassBlurFloorPlus" {
+        uniform token info:id = "ND_floor_float"
+        float inputs:in.connect = </WindowShopperWindowBaked/GlassBlurUPlus.outputs:out>
+        float outputs:out
+    }
+    def Shader "GlassBlurFractPlus" {
+        uniform token info:id = "ND_subtract_float"
+        float inputs:in1.connect = </WindowShopperWindowBaked/GlassBlurUPlus.outputs:out>
+        float inputs:in2.connect = </WindowShopperWindowBaked/GlassBlurFloorPlus.outputs:out>
+        float outputs:out
+    }
+    def Shader "GlassBlurVPlus" {
+        uniform token info:id = "ND_extract_vector2"
+        float2 inputs:in.connect = </WindowShopperWindowBaked/GlassBlurPlus.outputs:out>
+        int inputs:index = 1
+        float outputs:out
+    }
+    def Shader "GlassBlurVZeroPlus" {
+        uniform token info:id = "ND_max_float"
+        float inputs:in1 = 0
+        float inputs:in2.connect = </WindowShopperWindowBaked/GlassBlurVPlus.outputs:out>
+        float outputs:out
+    }
+    def Shader "GlassBlurVClampPlus" {
+        uniform token info:id = "ND_min_float"
+        float inputs:in1 = 1
+        float inputs:in2.connect = </WindowShopperWindowBaked/GlassBlurVZeroPlus.outputs:out>
+        float outputs:out
+    }
+    def Shader "GlassBlurWrappedPlus" {
+        uniform token info:id = "ND_combine2_vector2"
+        float inputs:in1.connect = </WindowShopperWindowBaked/GlassBlurFractPlus.outputs:out>
+        float inputs:in2.connect = </WindowShopperWindowBaked/GlassBlurVClampPlus.outputs:out>
+        float2 outputs:out
+    }
+    def Shader "GlassEnvironmentPlus" {
+        uniform token info:id = "ND_RealityKitTexture2D_color3"
+        asset inputs:file.connect = </WindowShopperWindowBaked.inputs:ReflectionTexture>
+        float2 inputs:texcoord.connect = </WindowShopperWindowBaked/GlassBlurWrappedPlus.outputs:out>
+        bool inputs:no_flip_v = true
+        color3f outputs:out
+    }
+    def Shader "GlassBlurMinus" {
+        uniform token info:id = "ND_subtract_vector2"
+        float2 inputs:in1.connect = </WindowShopperWindowBaked/GlassRotatedUV.outputs:out>
+        float2 inputs:in2.connect = </WindowShopperWindowBaked/GlassBlurOffset.outputs:out>
+        float2 outputs:out
+    }
+    def Shader "GlassBlurUMinus" {
+        uniform token info:id = "ND_extract_vector2"
+        float2 inputs:in.connect = </WindowShopperWindowBaked/GlassBlurMinus.outputs:out>
+        int inputs:index = 0
+        float outputs:out
+    }
+    def Shader "GlassBlurFloorMinus" {
+        uniform token info:id = "ND_floor_float"
+        float inputs:in.connect = </WindowShopperWindowBaked/GlassBlurUMinus.outputs:out>
+        float outputs:out
+    }
+    def Shader "GlassBlurFractMinus" {
+        uniform token info:id = "ND_subtract_float"
+        float inputs:in1.connect = </WindowShopperWindowBaked/GlassBlurUMinus.outputs:out>
+        float inputs:in2.connect = </WindowShopperWindowBaked/GlassBlurFloorMinus.outputs:out>
+        float outputs:out
+    }
+    def Shader "GlassBlurVMinus" {
+        uniform token info:id = "ND_extract_vector2"
+        float2 inputs:in.connect = </WindowShopperWindowBaked/GlassBlurMinus.outputs:out>
+        int inputs:index = 1
+        float outputs:out
+    }
+    def Shader "GlassBlurVZeroMinus" {
+        uniform token info:id = "ND_max_float"
+        float inputs:in1 = 0
+        float inputs:in2.connect = </WindowShopperWindowBaked/GlassBlurVMinus.outputs:out>
+        float outputs:out
+    }
+    def Shader "GlassBlurVClampMinus" {
+        uniform token info:id = "ND_min_float"
+        float inputs:in1 = 1
+        float inputs:in2.connect = </WindowShopperWindowBaked/GlassBlurVZeroMinus.outputs:out>
+        float outputs:out
+    }
+    def Shader "GlassBlurWrappedMinus" {
+        uniform token info:id = "ND_combine2_vector2"
+        float inputs:in1.connect = </WindowShopperWindowBaked/GlassBlurFractMinus.outputs:out>
+        float inputs:in2.connect = </WindowShopperWindowBaked/GlassBlurVClampMinus.outputs:out>
+        float2 outputs:out
+    }
+    def Shader "GlassEnvironmentMinus" {
+        uniform token info:id = "ND_RealityKitTexture2D_color3"
+        asset inputs:file.connect = </WindowShopperWindowBaked.inputs:ReflectionTexture>
+        float2 inputs:texcoord.connect = </WindowShopperWindowBaked/GlassBlurWrappedMinus.outputs:out>
+        bool inputs:no_flip_v = true
+        color3f outputs:out
+    }
+    def Shader "GlassBlurSum" {
+        uniform token info:id = "ND_add_color3"
+        color3f inputs:in1.connect = </WindowShopperWindowBaked/GlassEnvironmentPlus.outputs:out>
+        color3f inputs:in2.connect = </WindowShopperWindowBaked/GlassEnvironmentMinus.outputs:out>
+        color3f outputs:out
+    }
+    def Shader "GlassEnvironmentSum" {
+        uniform token info:id = "ND_add_color3"
+        color3f inputs:in1.connect = </WindowShopperWindowBaked/GlassEnvironment.outputs:out>
+        color3f inputs:in2.connect = </WindowShopperWindowBaked/GlassBlurSum.outputs:out>
+        color3f outputs:out
+    }
+    def Shader "GlassEnvironmentAverage" {
+        uniform token info:id = "ND_multiply_color3FA"
+        color3f inputs:in1.connect = </WindowShopperWindowBaked/GlassEnvironmentSum.outputs:out>
+        float inputs:in2 = 0.3333333333333333
+        color3f outputs:out
+    }
+    def Shader "GlassExposedEnvironment" {
+        uniform token info:id = "ND_multiply_color3FA"
+        color3f inputs:in1.connect = </WindowShopperWindowBaked/GlassEnvironmentAverage.outputs:out>
+        float inputs:in2.connect = </WindowShopperWindowBaked.inputs:ReflectionExposure>
+        color3f outputs:out
+    }
+    def Shader "GlassAbsDot" {
+        uniform token info:id = "ND_absval_float"
+        float inputs:in.connect = </WindowShopperWindowBaked/GlassDot.outputs:out>
+        float outputs:out
+    }
+    def Shader "GlassClampDot" {
+        uniform token info:id = "ND_min_float"
+        float inputs:in1.connect = </WindowShopperWindowBaked/GlassAbsDot.outputs:out>
+        float inputs:in2 = 1
+        float outputs:out
+    }
+    def Shader "GlassGrazing" {
+        uniform token info:id = "ND_subtract_float"
+        float inputs:in1 = 1
+        float inputs:in2.connect = </WindowShopperWindowBaked/GlassClampDot.outputs:out>
+        float outputs:out
+    }
+    def Shader "GlassFresnel" {
+        uniform token info:id = "ND_power_float"
+        float inputs:in1.connect = </WindowShopperWindowBaked/GlassGrazing.outputs:out>
+        float inputs:in2 = 5
+        float outputs:out
+    }
+    def Shader "GlassFresnelScale" {
+        uniform token info:id = "ND_multiply_float"
+        float inputs:in1.connect = </WindowShopperWindowBaked/GlassFresnel.outputs:out>
+        float inputs:in2 = 0.8
+        float outputs:out
+    }
+    def Shader "GlassFresnelFloor" {
+        uniform token info:id = "ND_add_float"
+        float inputs:in1 = 0.2
+        float inputs:in2.connect = </WindowShopperWindowBaked/GlassFresnelScale.outputs:out>
+        float outputs:out
+    }
+    def Shader "GlassStrength" {
+        uniform token info:id = "ND_multiply_float"
+        float inputs:in1.connect = </WindowShopperWindowBaked.inputs:ReflectionStrength>
+        float inputs:in2.connect = </WindowShopperWindowBaked/GlassFresnelFloor.outputs:out>
+        float outputs:out
+    }
+    def Shader "GlassTintedEmission" {
+        uniform token info:id = "ND_multiply_color3"
+        color3f inputs:in1.connect = </WindowShopperWindowBaked/PrivacyEmission.outputs:out>
+        color3f inputs:in2.connect = </WindowShopperWindowBaked.inputs:GlassTint>
+        color3f outputs:out
+    }
+    def Shader "GlassTransmission" {
+        uniform token info:id = "ND_subtract_float"
+        float inputs:in1 = 1
+        float inputs:in2.connect = </WindowShopperWindowBaked/GlassStrength.outputs:out>
+        float outputs:out
+    }
+    def Shader "GlassTransmittedEmission" {
+        uniform token info:id = "ND_multiply_color3FA"
+        color3f inputs:in1.connect = </WindowShopperWindowBaked/GlassTintedEmission.outputs:out>
+        float inputs:in2.connect = </WindowShopperWindowBaked/GlassTransmission.outputs:out>
+        color3f outputs:out
+    }
+    def Shader "NormalView" {
+        uniform token info:id = "ND_subtract_float"
+        float inputs:in1 = 1
+        float inputs:in2.connect = </WindowShopperWindowBaked.inputs:ReflectionOnly>
+        float outputs:out
+    }
+    def Shader "NormalViewEmission" {
+        uniform token info:id = "ND_multiply_color3FA"
+        color3f inputs:in1.connect = </WindowShopperWindowBaked/GlassTransmittedEmission.outputs:out>
+        float inputs:in2.connect = </WindowShopperWindowBaked/NormalView.outputs:out>
+        color3f outputs:out
+    }
+    def Shader "GlassUncovered" {
+        uniform token info:id = "ND_subtract_float"
+        float inputs:in1 = 1
+        float inputs:in2.connect = </WindowShopperWindowBaked/PrivacyMask.outputs:out>
+        float outputs:out
+    }
+    def Shader "UncoveredGlassMix" {
+        uniform token info:id = "ND_multiply_float"
+        float inputs:in1.connect = </WindowShopperWindowBaked/GlassStrength.outputs:out>
+        float inputs:in2.connect = </WindowShopperWindowBaked/GlassUncovered.outputs:out>
+        float outputs:out
+    }
+    def Shader "GlassTintedRoom" {
+        uniform token info:id = "ND_multiply_color3"
+        color3f inputs:in1.connect = </WindowShopperWindowBaked/PrivacyComposite.outputs:out>
+        color3f inputs:in2.connect = </WindowShopperWindowBaked.inputs:GlassTint>
+        color3f outputs:out
+    }
+    def Shader "WindowGlassComposite" {
+        uniform token info:id = "ND_mix_color3"
+        color3f inputs:bg.connect = </WindowShopperWindowBaked/GlassTintedRoom.outputs:out>
+        color3f inputs:fg.connect = </WindowShopperWindowBaked/GlassExposedEnvironment.outputs:out>
+        float inputs:mix.connect = </WindowShopperWindowBaked/UncoveredGlassMix.outputs:out>
+        color3f outputs:out
+    }
+    def Shader "WindowFinalColor" {
+        uniform token info:id = "ND_mix_color3"
+        color3f inputs:bg.connect = </WindowShopperWindowBaked/WindowGlassComposite.outputs:out>
+        color3f inputs:fg.connect = </WindowShopperWindowBaked/GlassExposedEnvironment.outputs:out>
+        float inputs:mix.connect = </WindowShopperWindowBaked.inputs:ReflectionOnly>
+        color3f outputs:out
+    }
+    def Shader "AuthoredEmissionSurface" {
+        uniform token info:id = "ND_add_color3"
+        color3f inputs:in1.connect = </WindowShopperWindowBaked/HeadlampSurface.outputs:out>
+        color3f inputs:in2.connect = </WindowShopperWindowBaked/NormalViewEmission.outputs:out>
+        color3f outputs:out
+    }
+
+    # BEGIN SHARED CITY AIR
+    def Shader "AirWorld" {
+        uniform token info:id = "ND_position_vector3"
+        string inputs:space = "world"
+        float3 outputs:out
+    }
+    def Shader "AirEye" {
+        uniform token info:id = "ND_realitykit_cameraposition_vector3"
+        string inputs:space = "world"
+        float3 outputs:out
+    }
+    def Shader "AirLocal" {
+        uniform token info:id = "ND_position_vector3"
+        string inputs:space = "object"
+        float3 outputs:out
+    }
+    def Shader "AirEyeLocal" {
+        uniform token info:id = "ND_transformpoint_vector3"
+        float3 inputs:in.connect = </WindowShopperWindowBaked/AirEye.outputs:out>
+        string inputs:fromspace = "world"
+        string inputs:tospace = "object"
+        float3 outputs:out
+    }
+    def Shader "AirHeightDot" {
+        uniform token info:id = "ND_dotproduct_vector3"
+        float3 inputs:in1.connect = </WindowShopperWindowBaked/AirLocal.outputs:out>
+        float3 inputs:in2.connect = </WindowShopperWindowBaked.inputs:CityHeightAxis>
+        float outputs:out
+    }
+    def Shader "AirHeight" {
+        uniform token info:id = "ND_add_float"
+        float inputs:in1.connect = </WindowShopperWindowBaked/AirHeightDot.outputs:out>
+        float inputs:in2.connect = </WindowShopperWindowBaked.inputs:CityHeightOffset>
+        float outputs:out
+    }
+    def Shader "AirEyeHeightDot" {
+        uniform token info:id = "ND_dotproduct_vector3"
+        float3 inputs:in1.connect = </WindowShopperWindowBaked/AirEyeLocal.outputs:out>
+        float3 inputs:in2.connect = </WindowShopperWindowBaked.inputs:CityHeightAxis>
+        float outputs:out
+    }
+    def Shader "AirEyeHeight" {
+        uniform token info:id = "ND_add_float"
+        float inputs:in1.connect = </WindowShopperWindowBaked/AirEyeHeightDot.outputs:out>
+        float inputs:in2.connect = </WindowShopperWindowBaked.inputs:CityHeightOffset>
+        float outputs:out
+    }
+    def Shader "AirRay" {
+        uniform token info:id = "ND_subtract_vector3"
+        float3 inputs:in1.connect = </WindowShopperWindowBaked/AirWorld.outputs:out>
+        float3 inputs:in2.connect = </WindowShopperWindowBaked/AirEye.outputs:out>
+        float3 outputs:out
+    }
+    def Shader "AirDistance" {
+        uniform token info:id = "ND_magnitude_vector3"
+        float3 inputs:in.connect = </WindowShopperWindowBaked/AirRay.outputs:out>
+        float outputs:out
+    }
+    def Shader "AirHeightDelta" {
+        uniform token info:id = "ND_subtract_float"
+        float inputs:in1.connect = </WindowShopperWindowBaked/AirHeight.outputs:out>
+        float inputs:in2.connect = </WindowShopperWindowBaked/AirEyeHeight.outputs:out>
+        float outputs:out
+    }
+    def Shader "AirStep0" {
+        uniform token info:id = "ND_multiply_float"
+        float inputs:in1.connect = </WindowShopperWindowBaked/AirHeightDelta.outputs:out>
+        float inputs:in2 = 0.125
+        float outputs:out
+    }
+    def Shader "AirSample0" {
+        uniform token info:id = "ND_add_float"
+        float inputs:in1.connect = </WindowShopperWindowBaked/AirEyeHeight.outputs:out>
+        float inputs:in2.connect = </WindowShopperWindowBaked/AirStep0.outputs:out>
+        float outputs:out
+    }
+    def Shader "AirBelow0" {
+        uniform token info:id = "ND_subtract_float"
+        float inputs:in1 = 15
+        float inputs:in2.connect = </WindowShopperWindowBaked/AirSample0.outputs:out>
+        float outputs:out
+    }
+    def Shader "AirRamp0" {
+        uniform token info:id = "ND_divide_float"
+        float inputs:in1.connect = </WindowShopperWindowBaked/AirBelow0.outputs:out>
+        float inputs:in2 = 35
+        float outputs:out
+    }
+    def Shader "AirWeight0" {
+        uniform token info:id = "ND_clamp_float"
+        float inputs:in.connect = </WindowShopperWindowBaked/AirRamp0.outputs:out>
+        float inputs:low = 0
+        float inputs:high = 1
+        float outputs:out
+    }
+    def Shader "AirDensity0" {
+        uniform token info:id = "ND_multiply_float"
+        float inputs:in1.connect = </WindowShopperWindowBaked/AirWeight0.outputs:out>
+        float inputs:in2.connect = </WindowShopperWindowBaked/AirWeight0.outputs:out>
+        float outputs:out
+    }
+    def Shader "AirStep1" {
+        uniform token info:id = "ND_multiply_float"
+        float inputs:in1.connect = </WindowShopperWindowBaked/AirHeightDelta.outputs:out>
+        float inputs:in2 = 0.375
+        float outputs:out
+    }
+    def Shader "AirSample1" {
+        uniform token info:id = "ND_add_float"
+        float inputs:in1.connect = </WindowShopperWindowBaked/AirEyeHeight.outputs:out>
+        float inputs:in2.connect = </WindowShopperWindowBaked/AirStep1.outputs:out>
+        float outputs:out
+    }
+    def Shader "AirBelow1" {
+        uniform token info:id = "ND_subtract_float"
+        float inputs:in1 = 15
+        float inputs:in2.connect = </WindowShopperWindowBaked/AirSample1.outputs:out>
+        float outputs:out
+    }
+    def Shader "AirRamp1" {
+        uniform token info:id = "ND_divide_float"
+        float inputs:in1.connect = </WindowShopperWindowBaked/AirBelow1.outputs:out>
+        float inputs:in2 = 35
+        float outputs:out
+    }
+    def Shader "AirWeight1" {
+        uniform token info:id = "ND_clamp_float"
+        float inputs:in.connect = </WindowShopperWindowBaked/AirRamp1.outputs:out>
+        float inputs:low = 0
+        float inputs:high = 1
+        float outputs:out
+    }
+    def Shader "AirDensity1" {
+        uniform token info:id = "ND_multiply_float"
+        float inputs:in1.connect = </WindowShopperWindowBaked/AirWeight1.outputs:out>
+        float inputs:in2.connect = </WindowShopperWindowBaked/AirWeight1.outputs:out>
+        float outputs:out
+    }
+    def Shader "AirStep2" {
+        uniform token info:id = "ND_multiply_float"
+        float inputs:in1.connect = </WindowShopperWindowBaked/AirHeightDelta.outputs:out>
+        float inputs:in2 = 0.625
+        float outputs:out
+    }
+    def Shader "AirSample2" {
+        uniform token info:id = "ND_add_float"
+        float inputs:in1.connect = </WindowShopperWindowBaked/AirEyeHeight.outputs:out>
+        float inputs:in2.connect = </WindowShopperWindowBaked/AirStep2.outputs:out>
+        float outputs:out
+    }
+    def Shader "AirBelow2" {
+        uniform token info:id = "ND_subtract_float"
+        float inputs:in1 = 15
+        float inputs:in2.connect = </WindowShopperWindowBaked/AirSample2.outputs:out>
+        float outputs:out
+    }
+    def Shader "AirRamp2" {
+        uniform token info:id = "ND_divide_float"
+        float inputs:in1.connect = </WindowShopperWindowBaked/AirBelow2.outputs:out>
+        float inputs:in2 = 35
+        float outputs:out
+    }
+    def Shader "AirWeight2" {
+        uniform token info:id = "ND_clamp_float"
+        float inputs:in.connect = </WindowShopperWindowBaked/AirRamp2.outputs:out>
+        float inputs:low = 0
+        float inputs:high = 1
+        float outputs:out
+    }
+    def Shader "AirDensity2" {
+        uniform token info:id = "ND_multiply_float"
+        float inputs:in1.connect = </WindowShopperWindowBaked/AirWeight2.outputs:out>
+        float inputs:in2.connect = </WindowShopperWindowBaked/AirWeight2.outputs:out>
+        float outputs:out
+    }
+    def Shader "AirStep3" {
+        uniform token info:id = "ND_multiply_float"
+        float inputs:in1.connect = </WindowShopperWindowBaked/AirHeightDelta.outputs:out>
+        float inputs:in2 = 0.875
+        float outputs:out
+    }
+    def Shader "AirSample3" {
+        uniform token info:id = "ND_add_float"
+        float inputs:in1.connect = </WindowShopperWindowBaked/AirEyeHeight.outputs:out>
+        float inputs:in2.connect = </WindowShopperWindowBaked/AirStep3.outputs:out>
+        float outputs:out
+    }
+    def Shader "AirBelow3" {
+        uniform token info:id = "ND_subtract_float"
+        float inputs:in1 = 15
+        float inputs:in2.connect = </WindowShopperWindowBaked/AirSample3.outputs:out>
+        float outputs:out
+    }
+    def Shader "AirRamp3" {
+        uniform token info:id = "ND_divide_float"
+        float inputs:in1.connect = </WindowShopperWindowBaked/AirBelow3.outputs:out>
+        float inputs:in2 = 35
+        float outputs:out
+    }
+    def Shader "AirWeight3" {
+        uniform token info:id = "ND_clamp_float"
+        float inputs:in.connect = </WindowShopperWindowBaked/AirRamp3.outputs:out>
+        float inputs:low = 0
+        float inputs:high = 1
+        float outputs:out
+    }
+    def Shader "AirDensity3" {
+        uniform token info:id = "ND_multiply_float"
+        float inputs:in1.connect = </WindowShopperWindowBaked/AirWeight3.outputs:out>
+        float inputs:in2.connect = </WindowShopperWindowBaked/AirWeight3.outputs:out>
+        float outputs:out
+    }
+    def Shader "AirPairA" {
+        uniform token info:id = "ND_add_float"
+        float inputs:in1.connect = </WindowShopperWindowBaked/AirDensity0.outputs:out>
+        float inputs:in2.connect = </WindowShopperWindowBaked/AirDensity1.outputs:out>
+        float outputs:out
+    }
+    def Shader "AirPairB" {
+        uniform token info:id = "ND_add_float"
+        float inputs:in1.connect = </WindowShopperWindowBaked/AirDensity2.outputs:out>
+        float inputs:in2.connect = </WindowShopperWindowBaked/AirDensity3.outputs:out>
+        float outputs:out
+    }
+    def Shader "AirLowerSum" {
+        uniform token info:id = "ND_add_float"
+        float inputs:in1.connect = </WindowShopperWindowBaked/AirPairA.outputs:out>
+        float inputs:in2.connect = </WindowShopperWindowBaked/AirPairB.outputs:out>
+        float outputs:out
+    }
+    def Shader "AirLower" {
+        uniform token info:id = "ND_multiply_float"
+        float inputs:in1.connect = </WindowShopperWindowBaked/AirLowerSum.outputs:out>
+        float inputs:in2 = 0.0625
+        float outputs:out
+    }
+    def Shader "AirBase" {
+        uniform token info:id = "ND_multiply_float"
+        float inputs:in1.connect = </WindowShopperWindowBaked.inputs:FogDensity>
+        float inputs:in2 = -0.32
+        float outputs:out
+    }
+    def Shader "AirDensity" {
+        uniform token info:id = "ND_add_float"
+        float inputs:in1.connect = </WindowShopperWindowBaked/AirBase.outputs:out>
+        float inputs:in2.connect = </WindowShopperWindowBaked/AirLower.outputs:out>
+        float outputs:out
+    }
+    def Shader "AirDepth" {
+        uniform token info:id = "ND_multiply_float"
+        float inputs:in1.connect = </WindowShopperWindowBaked/AirDistance.outputs:out>
+        float inputs:in2.connect = </WindowShopperWindowBaked/AirDensity.outputs:out>
+        float outputs:out
+    }
+    def Shader "AirEnabledDepth" {
+        uniform token info:id = "ND_multiply_float"
+        float inputs:in1.connect = </WindowShopperWindowBaked/AirDepth.outputs:out>
+        float inputs:in2.connect = </WindowShopperWindowBaked.inputs:FogEnabled>
+        float outputs:out
+    }
+    def Shader "AirNegativeDepth" {
+        uniform token info:id = "ND_multiply_float"
+        float inputs:in1.connect = </WindowShopperWindowBaked/AirEnabledDepth.outputs:out>
+        float inputs:in2 = -1
+        float outputs:out
+    }
+    def Shader "AirTransmission" {
+        uniform token info:id = "ND_exp_float"
+        float inputs:in.connect = </WindowShopperWindowBaked/AirNegativeDepth.outputs:out>
+        float outputs:out
+    }
+    def Shader "AirColour" {
+        uniform token info:id = "ND_multiply_color3FA"
+        color3f inputs:in1 = (0.014, 0.055, 0.105)
+        float inputs:in2.connect = </WindowShopperWindowBaked.inputs:FogBrightness>
+        color3f outputs:out
+    }
+    def Shader "AirUnified" {
+        uniform token info:id = "ND_mix_color3"
+        color3f inputs:bg.connect = </WindowShopperWindowBaked/AirColour.outputs:out>
+        color3f inputs:fg.connect = </WindowShopperWindowBaked/AuthoredEmissionSurface.outputs:out>
+        float inputs:mix.connect = </WindowShopperWindowBaked/AirTransmission.outputs:out>
+        color3f outputs:out
+    }
+    def Shader "AirOutput" {
+        uniform token info:id = "ND_mix_color3"
+        color3f inputs:bg.connect = </WindowShopperWindowBaked/Blend.outputs:out>
+        color3f inputs:fg.connect = </WindowShopperWindowBaked/AirUnified.outputs:out>
+        float inputs:mix.connect = </WindowShopperWindowBaked.inputs:CityAirEnabled>
+        color3f outputs:out
+    }
+    # END SHARED CITY AIR
+}
